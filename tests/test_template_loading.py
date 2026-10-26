@@ -81,6 +81,39 @@ def test_duplicate_slug_and_channel_names_both_files(tmp_path):
     assert "password_reset/email.yaml" in message and "copy/email.yaml" in message
 
 
+def test_manifest_slug_must_match_its_directory(tmp_path):
+    write_email(tmp_path, slug="welcome", manifest=EMAIL_MANIFEST)  # declares password_reset
+    message = load_problems(tmp_path)
+    assert "welcome/email.yaml" in message
+    assert "must live at" in message and "password_reset/email.yaml" in message
+    assert "already defined" not in message  # no real password_reset exists here
+
+
+def test_manifest_channel_must_match_its_file_name(tmp_path):
+    write_email(tmp_path)
+    # An "sms" manifest that claims to be the email variant.
+    write(tmp_path, "password_reset/sms.yaml", EMAIL_MANIFEST)
+    write(tmp_path, "password_reset/sms.html", "<p>{{ name }}</p>")
+    write(tmp_path, "password_reset/sms.txt", "{{ name }}")
+    message = load_problems(tmp_path)
+    assert "password_reset/sms.yaml" in message
+    assert "already defined by" in message and "password_reset/email.yaml" in message
+
+
+def test_random_filter_is_not_available(tmp_path):
+    write_email(tmp_path, html="<p>{{ name | random }}</p>")
+    message = load_problems(tmp_path)
+    assert "email.html" in message and "random" in message
+
+
+def test_templates_are_compiled_once_at_load(tmp_path):
+    write_email(tmp_path)
+    variant = TemplateRegistry.load(tmp_path).get("password_reset", "email")
+    assert variant is not None
+    assert set(variant.templates) == {"subject", "html", "text"}
+    assert variant.render({"name": "A"}) == variant.render({"name": "A"})
+
+
 def test_unsupported_option_type_names_template_and_option(tmp_path):
     write_email(
         tmp_path,

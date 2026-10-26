@@ -5,6 +5,7 @@ the recipient and template options are PII. Messages here are fixed strings
 chosen by error type, not taken from the validation library.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -58,19 +59,33 @@ class ApiError(Exception):
         return {"code": self.code, "message": self.message, "errors": self.errors}
 
 
+def _strip_request_location(error: ErrorDetails) -> list[Any]:
+    """Drop FastAPI's ``body``/``header``... prefix and the discriminated-union
+    branch name, so ``('body', 'sms', 'recipient')`` becomes ``recipient``."""
+    loc = list(error["loc"])
+    if loc and loc[0] in _LOCATION_PREFIXES:
+        loc = loc[1:]
+    if loc and loc[0] in _CHANNEL_TAGS and error["type"] != "union_tag_invalid":
+        loc = loc[1:]
+    return loc
+
+
 def sanitize_errors(
-    errors: list[ErrorDetails] | tuple[ErrorDetails, ...], prefix: tuple[str, ...] = ()
+    errors: Sequence[ErrorDetails],
+    prefix: tuple[str, ...] = (),
+    request_errors: bool = False,
 ) -> list[dict[str, str]]:
-    """Field path and fixed message only; drops ``input`` and ``ctx``."""
+    """Field path and fixed message only; drops ``input`` and ``ctx``.
+
+    ``request_errors`` strips the request-location prefix FastAPI adds. It is
+    off for nested errors (template options) where a field may itself be
+    called ``body`` or ``email``.
+    """
     cleaned = []
     for error in errors:
-        loc = list(error["loc"])
-        if loc and loc[0] in _LOCATION_PREFIXES:
-            loc = loc[1:]
-        if loc and loc[0] in _CHANNEL_TAGS and error["type"] not in {"union_tag_invalid"}:
-            loc = loc[1:]  # the discriminated-union branch name
+        loc = _strip_request_location(error) if request_errors else list(error["loc"])
         field = ".".join(str(part) for part in (*prefix, *loc))
-        if error["type"] == "value_error":
+        if error["type"] == "value_error" and "ctx" in error:
             message = str(error["ctx"]["error"])  # our own fixed validator messages
         else:
             message = _MESSAGES.get(error["type"], "invalid value")
@@ -79,8 +94,10 @@ def sanitize_errors(
 
 
 def check_idempotency_key(request: Request) -> str:
-    key = request.headers.get(IDEMPOTENCY_KEY_HEADER)
-    if key is None or not key.strip():
+    # Surrounding whitespace is ignored: proxies and client libraries pad
+    # headers, and `abc` and `abc ` must not become two notifications.
+    key = (request.headers.get(IDEMPOTENCY_KEY_HEADER) or "").strip()
+    if not key:
         raise ApiError(400, "invalid_idempotency_key", f"{IDEMPOTENCY_KEY_HEADER} header is required")
     if len(key) > MAX_IDEMPOTENCY_KEY_LENGTH:
         raise ApiError(
@@ -106,6 +123,9 @@ def install_error_handlers(app: FastAPI) -> None:
             except ApiError as key_error:
                 return JSONResponse(key_error.body(), status_code=key_error.status_code)
         error = ApiError(
-            422, "validation_error", "request validation failed", sanitize_errors(exc.errors())
+            422,
+            "validation_error",
+            "request validation failed",
+            sanitize_errors(exc.errors(), request_errors=True),
         )
         return JSONResponse(error.body(), status_code=422)

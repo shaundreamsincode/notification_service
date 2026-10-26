@@ -116,7 +116,7 @@ def mark_sent(
         conn,
         claimed,
         worker_id,
-        "status = 'sent', sent_at = now(), provider_message_id = :pmid",
+        "status = 'sent', sent_at = now(), provider_message_id = :pmid, last_error = NULL",
         {"pmid": provider_message_id},
         provider_message_id,
     )
@@ -166,7 +166,7 @@ def release(conn: Connection, claimed: Claimed, worker_id: str) -> bool:
 _REAP = text(
     """
     UPDATE notifications
-    SET status = 'unknown', last_error = 'lease_expired', updated_at = now()
+    SET status = 'unknown', last_error = :err, updated_at = now()
     WHERE status = 'processing' AND locked_at < now() - make_interval(secs => :lease)
     """
 )
@@ -175,7 +175,9 @@ _REAP = text(
 def reap(conn: Connection, lease_seconds: float) -> int:
     """Mark rows whose lease expired as ``unknown``. Uses database time, so
     worker clock skew is irrelevant. Idempotent; any worker may run it."""
-    return conn.execute(_REAP, {"lease": lease_seconds}).rowcount
+    return conn.execute(
+        _REAP, {"lease": lease_seconds, "err": ErrorCategory.LEASE_EXPIRED.value}
+    ).rowcount
 
 
 class Worker:
@@ -212,16 +214,27 @@ class Worker:
         if reaped:
             logger.warning("marked %d notification(s) unknown: lease expired", reaped)
 
-        for index, notification in enumerate(claimed):
-            if self._stopping.is_set():
-                # Never sent, so safe to hand back rather than let the lease
-                # turn them into `unknown`.
-                with self.engine.begin() as conn:
-                    for unsent in claimed[index:]:
-                        release(conn, unsent, self.worker_id)
-                break
-            self.process(notification)
+        remaining = list(claimed)
+        try:
+            while remaining and not self._stopping.is_set():
+                self.process(remaining.pop(0))
+        finally:
+            # Rows left over after a shutdown, or after a failure on an earlier
+            # row, were never sent: hand them back rather than let the lease
+            # turn them into `unknown`. Only the in-flight row may expire.
+            if remaining:
+                self._release(remaining)
         return len(claimed)
+
+    def _release(self, unsent: list[Claimed]) -> None:
+        try:
+            with self.engine.begin() as conn:
+                for notification in unsent:
+                    release(conn, notification, self.worker_id)
+        except Exception as exc:
+            logger.error(
+                "could not release %d unsent notification(s): %s", len(unsent), type(exc).__name__
+            )
 
     def run(self) -> None:
         while not self._stopping.is_set():

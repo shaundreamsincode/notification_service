@@ -109,6 +109,8 @@ class TemplateVariant:
     subject: str | None
     bodies: dict[str, str] = field(default_factory=dict)
     options_model: type[BaseModel] = field(default=BaseModel, compare=False, repr=False)
+    # Compiled once at load, keyed "subject", "html", "text".
+    templates: dict[str, jinja2.Template] = field(default_factory=dict, compare=False, repr=False)
 
     def validate_options(self, raw: Any) -> dict[str, Any]:
         """Check ``raw`` against the contract and return the render context.
@@ -132,18 +134,18 @@ class TemplateVariant:
         so equal contexts give identical output.
         """
         subject = None
-        if self.subject is not None:
-            subject = _render_part(_TEXT_ENV, self.subject, context, "subject").strip()
+        if "subject" in self.templates:
+            subject = _render_part(self.templates["subject"], context, "subject").strip()
             _require_text(subject, "subject")
             if "\n" in subject or "\r" in subject:
                 raise TemplateRenderError("subject: rendered with a line break")
 
         html = None
-        if "html" in self.bodies:
-            html = _render_part(_HTML_ENV, self.bodies["html"], context, "html body")
+        if "html" in self.templates:
+            html = _render_part(self.templates["html"], context, "html body")
             _require_text(html, "html body")
 
-        text = _render_part(_TEXT_ENV, self.bodies["text"], context, "text body")
+        text = _render_part(self.templates["text"], context, "text body")
         _require_text(text, "text body")
         return RenderedMessage(subject, html, text)
 
@@ -156,8 +158,10 @@ def make_environment(autoescape: bool) -> jinja2.Environment:
         keep_trailing_newline=True,
     )
     # No range(), lipsum(), cycler() and friends: nothing non-deterministic,
-    # and every name a template uses must be a declared option.
+    # and every name a template uses must be a declared option. The `random`
+    # filter is the one built-in that would break determinism.
     env.globals.clear()
+    del env.filters["random"]
     return env
 
 
@@ -165,9 +169,9 @@ _HTML_ENV = make_environment(autoescape=True)
 _TEXT_ENV = make_environment(autoescape=False)
 
 
-def _render_part(env: jinja2.Environment, source: str, context: dict[str, Any], part: str) -> str:
+def _render_part(template: jinja2.Template, context: dict[str, Any], part: str) -> str:
     try:
-        return env.from_string(source).render(context)
+        return template.render(context)
     except jinja2.UndefinedError as exc:
         # "'name' is undefined": names the option, carries no value.
         raise TemplateRenderError(f"{part}: {exc.message}") from None
@@ -262,14 +266,22 @@ def _load_manifest(path: Path, problems: list[str]) -> TemplateVariant | None:
         return None
 
     declared = set(options)
-    sources = {f"body {path.with_suffix(BODY_PARTS[channel][p]).name}": s for p, s in bodies.items()}
+    # (part, label, source, environment)
+    sources = [
+        (part, f"body {path.with_suffix(BODY_PARTS[channel][part]).name}", source,
+         _HTML_ENV if part == "html" else _TEXT_ENV)
+        for part, source in bodies.items()
+    ]  # fmt: skip
     if subject is not None:
-        sources["subject"] = subject
-    for label, source in sources.items():
-        # Autoescape does not change which variables a template references.
+        sources.append(("subject", "subject", subject, _TEXT_ENV))
+    templates: dict[str, jinja2.Template] = {}
+    for part, label, source, env in sources:
         try:
-            names = _undeclared(make_environment(False), source)
+            # Autoescape does not change which variables a template references.
+            names = _undeclared(_TEXT_ENV, source)
+            templates[part] = env.from_string(source)
         except jinja2.TemplateSyntaxError as exc:
+            # Includes TemplateAssertionError, e.g. an unknown filter.
             problems.append(f"{where}: {label} has a syntax error on line {exc.lineno}: {exc.message}")
             continue
         for name in sorted(names - declared):
@@ -278,7 +290,7 @@ def _load_manifest(path: Path, problems: list[str]) -> TemplateVariant | None:
     if len(problems) > before:
         return None
     return TemplateVariant(
-        slug, channel, path, options, subject, bodies, build_options_model(options)
+        slug, channel, path, options, subject, bodies, build_options_model(options), templates
     )
 
 
@@ -293,20 +305,24 @@ class TemplateRegistry:
 
         problems: list[str] = []
         variants: dict[tuple[str, str], TemplateVariant] = {}
-        claimed: dict[tuple[str, str], Path] = {}
         for manifest in sorted(root.glob("*/*.yaml")):
             variant = _load_manifest(manifest, problems)
             if variant is None:
                 continue
-            key = (variant.slug, variant.channel)
-            if key in claimed:
-                problems.append(
-                    f"template '{variant.slug}' ({variant.channel}): declared by both "
-                    f"{claimed[key]} and {manifest}"
+            # The path is the identity: templates/<slug>/<channel>.yaml. A
+            # manifest declaring another slug or channel is a copy-paste
+            # error, and would otherwise shadow or duplicate that variant.
+            expected = root / variant.slug / f"{variant.channel}.yaml"
+            if manifest != expected:
+                problem = (
+                    f"{manifest}: manifest declares slug '{variant.slug}' and channel "
+                    f"'{variant.channel}', so it must live at {expected}"
                 )
+                if expected.is_file():
+                    problem += f" (already defined by {expected})"
+                problems.append(problem)
                 continue
-            claimed[key] = manifest
-            variants[key] = variant
+            variants[(variant.slug, variant.channel)] = variant
 
         if problems:
             raise TemplateLoadError(problems)

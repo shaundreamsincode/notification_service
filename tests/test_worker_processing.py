@@ -96,6 +96,30 @@ def test_retry_reuses_the_same_provider_key(db, make_worker):
     assert provider.idempotency_keys == [str(row["uuid"])] * 2
     after = fetch(db, row["id"])
     assert after.status == "sent" and after.attempt_count == 2
+    assert after.last_error is None  # the earlier transient error is cleared
+
+
+def test_failure_mid_batch_releases_the_unsent_rows(db, make_worker, monkeypatch):
+    rows = [insert_notification(db) for _ in range(3)]
+    provider = FakeProvider()
+    worker = make_worker(provider, batch_size=3, provider_deadline_seconds=5, lease_seconds=60)
+
+    from app.delivery import worker as worker_module
+
+    def database_blip(*args, **kwargs):
+        raise RuntimeError("connection reset")
+
+    monkeypatch.setattr(worker_module, "mark_sent", database_blip)
+    with pytest.raises(RuntimeError):
+        worker.run_once()
+
+    assert provider.call_count == 1  # only the first row reached the provider
+    in_flight = fetch(db, rows[0]["id"])
+    assert in_flight.status == "processing"  # its lease will decide; at most once
+    for row in rows[1:]:
+        untouched = fetch(db, row["id"])
+        assert untouched.status == "pending" and untouched.attempt_count == 0
+        assert untouched.locked_by is None
 
 
 def test_attempts_exhausted_becomes_failed(db, make_worker):

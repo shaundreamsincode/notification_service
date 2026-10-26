@@ -55,6 +55,7 @@ def test_transient_rejection_then_success(client, db, make_worker):
     worker.run_once()
     body = status_of(client, notification_id)
     assert body["status"] == "sent" and body["attempt_count"] == 2
+    assert body["last_error"] is None
     assert provider.idempotency_keys == [notification_id] * 2
 
 

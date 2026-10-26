@@ -27,8 +27,8 @@ options:
 
 | Field | Meaning |
 |---|---|
-| `slug` | Template name. Together with `channel` it must be unique. |
-| `channel` | `email` or `sms`. |
+| `slug` | Template name. Must equal the directory name. |
+| `channel` | `email` or `sms`. Must equal the manifest's file name. |
 | `subject` | Email only. Rendered as a template; must come out non-empty and on one line. |
 | `options` | Every option the template accepts, by name. |
 
@@ -41,8 +41,10 @@ Each option declares:
 | `default` | Optional options only. Applied when the option is omitted. |
 
 A request may not pass an option the manifest does not declare. A body or the
-subject may not reference a variable the manifest does not declare, and no Jinja
-globals (such as `range`) are available.
+subject may not reference a variable the manifest does not declare. No Jinja
+globals (such as `range`) and no `random` filter are available: a render must
+depend on nothing but the options, so the check at intake and the render at
+send time agree.
 
 ## Optional options need a guard
 

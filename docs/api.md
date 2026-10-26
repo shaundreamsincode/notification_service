@@ -18,7 +18,7 @@ Headers:
 
 | Header | Required | Notes |
 |---|---|---|
-| `Idempotency-Key` | yes | 1 to 255 characters. See [Idempotency](#idempotency). |
+| `Idempotency-Key` | yes | 1 to 255 characters after trimming surrounding whitespace. See [Idempotency](#idempotency). |
 | `Content-Type` | yes | `application/json` |
 
 Body:
@@ -112,6 +112,7 @@ repeat a submitted value, so a rejected recipient or option is not echoed back.
 | 422 | `invalid_template_options` | A required option is missing, an option is undeclared, or one has the wrong type. Each is listed in `errors`, e.g. `template_options.appointment_time`. |
 | 422 | `render_failed` | The options passed validation but the template failed to render. |
 | 422 | `idempotency_key_reused` | The key was used with a different request. |
+| 409 | `idempotency_key_conflict` | Two requests raced on a new key and the winner could not be read back. Safe to retry. Not expected in practice. |
 
 ```bash
 curl -sS -X POST $BASE/notifications \
@@ -160,7 +161,7 @@ HTTP 200
 | `uuid`, `channel`, `template_slug` | As submitted. |
 | `status` | One of the five statuses below. |
 | `attempt_count` | Delivery attempts made so far. |
-| `last_error` | `null` until an attempt is unsuccessful, then `{code, message}`. See below. |
+| `last_error` | `null` until an attempt is unsuccessful, then `{code, message}`. Cleared again when the notification is `sent`. See below. |
 | `created_at`, `updated_at` | ISO 8601 timestamps. |
 | `sent_at` | Set when the provider confirmed the message. |
 

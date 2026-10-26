@@ -142,6 +142,17 @@ def test_256_character_key_is_rejected(client, db):
     assert row_count(db) == 0
 
 
+def test_surrounding_whitespace_in_the_key_is_ignored(client, db):
+    first = post(client, sms_body(), key="abc").json()
+    assert post(client, sms_body(), key="  abc ").json() == first
+    assert row_count(db) == 1
+    assert db.execute(text("SELECT idempotency_key FROM notifications")).scalar_one() == "abc"
+
+
+def test_key_length_is_judged_after_stripping(client):
+    assert post(client, sms_body(), key=" " + "k" * 255 + " ").status_code == 202
+
+
 def test_key_is_checked_before_the_body(client):
     # The body is invalid too, but the missing key is reported first.
     assert post(client, {"channel": "push"}, key=None).status_code == 400
@@ -205,6 +216,35 @@ def test_render_failure_is_rejected_and_nothing_stored(make_client, tmp_path, db
 
     assert response.status_code == 422
     assert response.json()["code"] == "render_failed"
+    assert row_count(db) == 0
+
+
+def test_options_named_like_request_locations_keep_their_field_names(make_client, tmp_path, db):
+    from tests.test_template_loading import write
+
+    write(
+        tmp_path,
+        "t/sms.yaml",
+        """
+        slug: t
+        channel: sms
+        options:
+          body: {type: string}
+          email: {type: string}
+          sms: {type: integer}
+        """,
+    )
+    write(tmp_path, "t/sms.txt", "{{ body }} {{ email }} {{ sms }}")
+    client = make_client(tmp_path)
+
+    response = post(client, sms_body(template_slug="t", template_options={"body": 5, "sms": "x"}))
+
+    assert response.status_code == 422
+    assert {e["field"] for e in response.json()["errors"]} == {
+        "template_options.body",
+        "template_options.email",
+        "template_options.sms",
+    }
     assert row_count(db) == 0
 
 

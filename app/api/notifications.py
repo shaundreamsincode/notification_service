@@ -106,7 +106,12 @@ def create_notification(
 
     session.rollback()
     winner = _find(session, key)
-    assert winner is not None  # the conflicting row was committed by the other request
+    if winner is None:
+        # The row that won the key vanished before we could read it back.
+        # Not reachable in normal operation; never let it become a 500.
+        raise ApiError(
+            409, "idempotency_key_conflict", "a concurrent request used this key; retry"
+        )
     return _replay(winner, digest)
 
 

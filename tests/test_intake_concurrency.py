@@ -53,6 +53,21 @@ def test_different_concurrent_requests_yield_one_success_and_one_conflict(client
     assert row_count(db) == REPEATS
 
 
+def test_vanished_winner_is_a_409_not_a_500(client, db, monkeypatch):
+    """The key conflicts on insert but the re-select finds nothing (the winning
+    row was removed in between). Must be a controlled error, with or without -O."""
+    from app.api import notifications
+
+    post(client, sms_body(), key="abc")
+    monkeypatch.setattr(notifications, "_find", lambda session, key: None)
+
+    response = post(client, sms_body(), key="abc")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "idempotency_key_conflict"
+    assert row_count(db) == 1
+
+
 def test_lost_race_is_resolved_by_reselecting(client, db, monkeypatch):
     """Deterministically take the ON CONFLICT path: the first lookup misses even
     though the row exists, as if a concurrent request committed in between."""
