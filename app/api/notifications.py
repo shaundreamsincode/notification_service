@@ -1,6 +1,7 @@
 """POST /notifications: intake with idempotency (design D6)."""
 
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import ValidationError
@@ -10,9 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.api.errors import ApiError, check_idempotency_key, sanitize_errors
 from app.db import get_session
+from app.delivery.outcomes import public_error
 from app.idempotency import request_hash
 from app.models import Notification
-from app.schemas import NotificationAccepted, NotificationRequest
+from app.schemas import LastError, NotificationAccepted, NotificationRequest, NotificationStatus
 from app.templates.registry import TemplateRenderError
 
 router = APIRouter()
@@ -106,3 +108,37 @@ def create_notification(
     winner = _find(session, key)
     assert winner is not None  # the conflicting row was committed by the other request
     return _replay(winner, digest)
+
+
+@router.get("/notifications/{uuid}", response_model=NotificationStatus)
+def get_notification(uuid: UUID, session: Session = Depends(get_session)) -> NotificationStatus:
+    row = session.execute(
+        select(
+            Notification.uuid,
+            Notification.channel,
+            Notification.template_slug,
+            Notification.status,
+            Notification.attempt_count,
+            Notification.last_error,
+            Notification.created_at,
+            Notification.updated_at,
+            Notification.sent_at,
+        ).where(Notification.uuid == uuid)
+    ).first()
+    if row is None:
+        raise ApiError(404, "not_found", "no notification with that UUID")
+    last_error = None
+    if row.last_error is not None:
+        code, message = public_error(row.last_error)
+        last_error = LastError(code=code, message=message)
+    return NotificationStatus(
+        uuid=row.uuid,
+        channel=row.channel,
+        template_slug=row.template_slug,
+        status=row.status,
+        attempt_count=row.attempt_count,
+        last_error=last_error,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        sent_at=row.sent_at,
+    )

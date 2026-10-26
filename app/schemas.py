@@ -1,6 +1,7 @@
 """Request and response models for the notifications API."""
 
 import math
+from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -72,3 +73,23 @@ NotificationRequest = Annotated[EmailRequest | SmsRequest, Field(discriminator="
 class NotificationAccepted(BaseModel):
     uuid: UUID
     status: str
+
+
+class LastError(BaseModel):
+    code: str
+    message: str
+
+
+class NotificationStatus(BaseModel):
+    """What a caller may read back. Deliberately has no recipient, options,
+    rendered content, or internal id."""
+
+    uuid: UUID
+    channel: str
+    template_slug: str
+    status: str
+    attempt_count: int
+    last_error: LastError | None
+    created_at: datetime
+    updated_at: datetime
+    sent_at: datetime | None

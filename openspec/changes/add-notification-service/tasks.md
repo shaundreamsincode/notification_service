@@ -30,8 +30,8 @@
 
 ## 5. Status endpoint and API documentation
 
-- [ ] 5.1 Implement `GET /notifications/{uuid}` returning UUID, channel, template slug, status, attempt count, last error, and timestamps, and never the recipient, options, rendered content, or internal id. Verify tests cover an existing notification, a well-formed unknown UUID returning `404`, a malformed UUID returning `422`, and the absence of recipient and option values in the body.
-- [ ] 5.2 Document both endpoints in `docs/api.md`: request and response shapes, the `Idempotency-Key` contract including equivalence and the key-reuse error code, the five statuses, and caller guidance (keep your key, resubmit `failed` with a new key, treat `unknown` as possibly delivered). Verify the `curl` examples in the document run against a locally started API and return the documented responses.
+- [x] 5.1 Implement `GET /notifications/{uuid}` returning UUID, channel, template slug, status, attempt count, last error, and timestamps, and never the recipient, options, rendered content, or internal id. Verify tests cover an existing notification, a well-formed unknown UUID returning `404`, a malformed UUID returning `422`, and the absence of recipient and option values in the body.
+- [x] 5.2 Document both endpoints in `docs/api.md`: request and response shapes, the `Idempotency-Key` contract including equivalence and the key-reuse error code, the five statuses, and caller guidance (keep your key, resubmit `failed` with a new key, treat `unknown` as possibly delivered). Verify the `curl` examples in the document run against a locally started API and return the documented responses.
 
 ## 6. Provider adapters and outcomes
 
