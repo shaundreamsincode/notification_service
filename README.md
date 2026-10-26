@@ -45,10 +45,16 @@ export DATABASE_URL=postgresql+psycopg://localhost/notifications   # the default
 uv run python -m alembic upgrade head
 ```
 
-In two terminals (same `DATABASE_URL`):
+Then in two more terminals. Each needs `DATABASE_URL` exported too; without it
+the service silently uses the default database.
 
 ```bash
+export DATABASE_URL=postgresql+psycopg://localhost/notifications
 uv run python -m uvicorn app.main:app --port 8000
+```
+
+```bash
+export DATABASE_URL=postgresql+psycopg://localhost/notifications
 uv run python -m app.delivery.worker
 ```
 
