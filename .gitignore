@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
+.claude/
+.DS_Store
+__MACOSX/
