@@ -1,0 +1,81 @@
+{
+  "change": "add-notification-service",
+  "schema": "spec-driven",
+  "entries": {
+    "proposal": {
+      "artifactId": "proposal",
+      "mainPaths": [
+        "proposal.md"
+      ],
+      "adversarialPaths": [
+        "adversarial/artifacts/proposal.md"
+      ],
+      "reviewPath": "adversarial/reviews/proposal-review.md",
+      "dependencies": [],
+      "status": "reconciled",
+      "authoredAt": "2026-10-23T14:45:00Z",
+      "comparedAt": "2026-10-23T14:52:00Z",
+      "reconciledAt": "2026-10-23T15:05:00Z",
+      "notes": "Adopted: at-most-once trade stated in Why; distinct unknown terminal status; idempotency key scope and body-mismatch at proposal level; startup template validation; lease reaper bullet; fuller Impact (ops constraint, callers, template deploys, out of scope); last_error in GET with no recipient or option values. Partially adopted: capability boundary kept at three, notification-delivery renamed notification-lifecycle and GET status view moved into it. Rejected: dropping dry-run render at intake; a fourth capability. Specs updated to match (lifecycle spec gained state-machine and status-view requirements; unknown replaces failed for lost outcomes)."
+    },
+    "specs": {
+      "artifactId": "specs",
+      "mainPaths": [
+        "specs/notification-intake/spec.md",
+        "specs/notification-lifecycle/spec.md",
+        "specs/notification-templates/spec.md"
+      ],
+      "adversarialPaths": [
+        "adversarial/artifacts/specs/notification-intake/spec.md",
+        "adversarial/artifacts/specs/notification-lifecycle/spec.md",
+        "adversarial/artifacts/specs/notification-templates/spec.md"
+      ],
+      "reviewPath": "adversarial/reviews/specs-review.md",
+      "dependencies": [
+        "proposal"
+      ],
+      "status": "reconciled",
+      "authoredAt": "2026-10-23T18:50:33Z",
+      "comparedAt": "2026-10-23T18:52:00Z",
+      "reconciledAt": "2026-10-23T19:10:00Z",
+      "notes": "Adopted: body equivalence definition (numbers by value, defaults not applied, template-independent); rejected requests do not consume the key; replay of failed/unknown and after template removal, with key lookup before template validation; intake errors do not echo recipient or options; SMS requires country code, no default region; concurrent different-body case; strict rendering with guard rule for omitted optional options; single-line non-empty subject; non-empty bodies; deterministic render; unsupported option type at startup; unclassifiable provider response is unknown; provider timeout shorter than lease; late-worker vs reaper rule (first atomic commit wins); last_error as sanitized category; GET excludes recipient. Kept from main: 422 for key reuse (with distinct code idempotency_key_reused), 422 for malformed UUID, duplicate slug+channel at startup, claim metadata, oldest-first, sent metadata, no persisted render, logged discards, named at-most-once requirement. Rejected: 409 for key reuse; adversary superseded-claim scenario. Deferred: design.md needs updates for D6 (number canonicalization, lookup before validation), D7/D4 (last_error category), D8 (strict undefined, guard rule, single-line subject, non-empty parts)."
+    },
+    "design": {
+      "artifactId": "design",
+      "mainPaths": [
+        "design.md"
+      ],
+      "adversarialPaths": [
+        "adversarial/artifacts/design.md"
+      ],
+      "reviewPath": "adversarial/reviews/design-review.md",
+      "dependencies": [
+        "proposal"
+      ],
+      "status": "reconciled",
+      "authoredAt": "2026-10-26T02:03:19Z",
+      "comparedAt": "2026-10-26T02:04:05Z",
+      "reconciledAt": "2026-10-26T02:30:00Z",
+      "notes": "Adopted: B1 fix (default batch size 1, settings check batch_size x provider_deadline < lease, defaults 15s deadline and 60s lease); B2 fix (single overall provider deadline in the adapter base class, guard expiry maps to unknown/provider_timeout); claim ordering tiebreaker on id with sort of RETURNING and matching index; reaper sets updated_at; graceful shutdown; sandboxed Jinja environments; ON CONFLICT DO NOTHING RETURNING as the insert primitive with main's lookup-first order; alternatives-considered lines for D2, D4, D6, D8, D10; new risks for sequential batches, per-phase timeouts, and poll load. Kept from main: connect-vs-read timeout classification, finalize guard, data model and claim SQL, D5, D7, D9, D11, D12. No spec changes needed. Deferred: tasks.md needs updates for 1.2 (stricter settings check and defaults), 2.1 and 7.1 (index and ordering), 4.6 (ON CONFLICT wording), a new overall-deadline wrapper task under group 6, 7.3 (reaper updated_at), 7.6 (graceful shutdown)."
+    },
+    "tasks": {
+      "artifactId": "tasks",
+      "mainPaths": [
+        "tasks.md"
+      ],
+      "adversarialPaths": [
+        "adversarial/artifacts/tasks.md"
+      ],
+      "reviewPath": "adversarial/reviews/tasks-review.md",
+      "dependencies": [
+        "specs",
+        "design"
+      ],
+      "status": "reconciled",
+      "authoredAt": "2026-10-26T02:42:44Z",
+      "comparedAt": "2026-10-26T02:43:17Z",
+      "reconciledAt": "2026-10-26T03:10:00Z",
+      "notes": "Adopted: new task 6.4 (shared HTTP classification helper with table-driven test); log-hygiene test in 7.5; provider-echoed recipient leak test through GET placed in 8.1 (not 5.1, which precedes the worker); table-driven transition test in 7.2 driven through real outcome writes with no helper module; 20-iteration repeats inside the threaded tests in 4.6 and 7.1; real templates/ directory test in 3.4; scenario-to-test walk in 8.3. Kept from main: docs placed with owning groups, finer task granularity, integration-only group 8, EXPLAIN index check, key header edges, internal-id exposure test, deadline/phase-sum tests. Rejected: database trigger for terminal immutability; test-only transitions helper; controllable clock helper; permanent 50-run loop task; README in the final group."
+    }
+  }
+}

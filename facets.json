@@ -1,0 +1,7 @@
+{
+  "manifestVersion": 0.2,
+  "facets": {
+    "openspec": "0.1.4",
+    "@agentfacets/openspec-adversary": "3.2.5"
+  }
+}
