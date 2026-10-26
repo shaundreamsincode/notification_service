@@ -68,11 +68,11 @@ def truncate_all(engine: Engine) -> None:
 
 
 @pytest.fixture
-def db(db_engine: Engine) -> Iterator[Connection]:
-    """A connection to the test database; all rows are removed after the test."""
-    conn = db_engine.connect()
+def db(schema: Engine) -> Iterator[Connection]:
+    """A connection to the migrated test database; all rows are removed after the test."""
+    conn = schema.connect()
     try:
         yield conn
     finally:
         conn.close()
-        truncate_all(db_engine)
+        truncate_all(schema)
