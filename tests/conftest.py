@@ -6,14 +6,17 @@ not mind losing: the session fixture drops and recreates its ``public`` schema.
 """
 
 import os
-from collections.abc import Iterator
-
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from fastapi.testclient import TestClient
 from sqlalchemy import Connection, Engine, create_engine, text
+
+from app.main import create_app
+from app.settings import REPO_ROOT, Settings
 
 
 @pytest.fixture(scope="session")
@@ -76,3 +79,31 @@ def db(schema: Engine) -> Iterator[Connection]:
     finally:
         conn.close()
         truncate_all(schema)
+
+
+@pytest.fixture
+def make_client(db: Connection, database_url: str) -> Iterator[Callable[..., TestClient]]:
+    """Build API clients (lifespan running) against the test database.
+
+    Depends on ``db`` so rows are truncated after the test, once clients close.
+    """
+    clients: list[TestClient] = []
+
+    def _make(template_dir: Path | None = None) -> TestClient:
+        settings = Settings(
+            DATABASE_URL=database_url,  # type: ignore[call-arg]
+            template_dir=template_dir or REPO_ROOT / "templates",
+        )
+        client = TestClient(create_app(settings))
+        client.__enter__()
+        clients.append(client)
+        return client
+
+    yield _make
+    for client in clients:
+        client.__exit__(None, None, None)
+
+
+@pytest.fixture
+def client(make_client: Callable[..., TestClient]) -> TestClient:
+    return make_client()

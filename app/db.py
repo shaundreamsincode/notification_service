@@ -1,20 +1,17 @@
 """Engine and session plumbing. Synchronous SQLAlchemy per design D9."""
 
 from collections.abc import Iterator
-from functools import lru_cache
 
+from fastapi import Request
 from sqlalchemy import Engine, create_engine
-from sqlalchemy.orm import Session, sessionmaker
-
-from app.settings import get_settings
+from sqlalchemy.orm import Session
 
 
-@lru_cache
-def get_engine() -> Engine:
-    return create_engine(get_settings().database_url, pool_pre_ping=True)
+def make_engine(url: str) -> Engine:
+    return create_engine(url, pool_pre_ping=True)
 
 
-def get_session() -> Iterator[Session]:
-    """FastAPI dependency yielding a session."""
-    with sessionmaker(get_engine(), expire_on_commit=False)() as session:
+def get_session(request: Request) -> Iterator[Session]:
+    """FastAPI dependency yielding a session on the app's engine."""
+    with Session(request.app.state.engine, expire_on_commit=False) as session:
         yield session
