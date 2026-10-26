@@ -8,7 +8,11 @@ not mind losing: the session fixture drops and recreates its ``public`` schema.
 import os
 from collections.abc import Iterator
 
+from pathlib import Path
+
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import Connection, Engine, create_engine, text
 
 
@@ -30,6 +34,24 @@ def db_engine(database_url: str) -> Iterator[Engine]:
         conn.execute(text("CREATE SCHEMA public"))
     yield engine
     engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def alembic_config(database_url: str) -> Config:
+    config = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
+    config.set_main_option(
+        "script_location", str(Path(__file__).resolve().parent.parent / "alembic")
+    )
+    # ConfigParser treats % as interpolation; URLs may contain escapes.
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    return config
+
+
+@pytest.fixture(scope="session")
+def schema(db_engine: Engine, alembic_config: Config) -> Engine:
+    """The test database migrated to head."""
+    command.upgrade(alembic_config, "head")
+    return db_engine
 
 
 def truncate_all(engine: Engine) -> None:

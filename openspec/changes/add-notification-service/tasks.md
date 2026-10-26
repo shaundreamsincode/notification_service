@@ -8,7 +8,7 @@
 
 ## 2. Database schema
 
-- [ ] 2.1 Implement the `notifications` ORM model and Alembic migration from design D7: integer primary key, unique `uuid`, unique `idempotency_key`, `request_hash`, status and channel check constraints including `unknown`, lease columns, `last_error`, `provider_message_id`, timestamps, and the partial index on `(available_at, id)` where status is `pending`. Verify `alembic upgrade head` then `downgrade base` succeeds on an empty database.
+- [x] 2.1 Implement the `notifications` ORM model and Alembic migration from design D7: integer primary key, unique `uuid`, unique `idempotency_key`, `request_hash`, status and channel check constraints including `unknown`, lease columns, `last_error`, `provider_message_id`, timestamps, and the partial index on `(available_at, id)` where status is `pending`. Verify `alembic upgrade head` then `downgrade base` succeeds on an empty database.
 - [ ] 2.2 Test the constraints. Verify inserting an invalid status or channel fails, a duplicate `idempotency_key` fails, two rows get different UUIDs, and `EXPLAIN` for the claim predicate uses the `(available_at, id)` partial index.
 
 ## 3. Template registry
