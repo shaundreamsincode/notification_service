@@ -1,0 +1,4 @@
+Hello {{ name }},
+
+Reset your password: {{ reset_url }}
+The link expires in {{ expires_in_minutes }} minutes.

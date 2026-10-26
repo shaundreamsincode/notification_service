@@ -1,0 +1,7 @@
+slug: password_reset
+channel: email
+subject: "Reset your password"
+options:
+  name: {type: string}
+  reset_url: {type: string}
+  expires_in_minutes: {type: integer, required: false, default: 60}

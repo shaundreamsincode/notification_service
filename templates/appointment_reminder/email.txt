@@ -1,0 +1,6 @@
+Hello {{ patient_name }},
+
+This is a reminder of your appointment at {{ clinic }} on {{ appointment_time }}.
+{% if instructions is defined %}
+{{ instructions }}
+{% endif %}

@@ -1,0 +1,4 @@
+<p>Hello {{ patient_name }},</p>
+<p>This is a reminder of your appointment at {{ clinic }} on {{ appointment_time }}.</p>
+{% if instructions is defined %}<p>{{ instructions }}</p>
+{% endif %}

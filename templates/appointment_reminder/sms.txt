@@ -1,0 +1,1 @@
+Hi {{ patient_name }}, reminder: your appointment at {{ clinic }} is on {{ appointment_time }}.

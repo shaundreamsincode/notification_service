@@ -1,0 +1,6 @@
+slug: appointment_reminder
+channel: sms
+options:
+  patient_name: {type: string}
+  appointment_time: {type: string}
+  clinic: {type: string, required: false, default: our clinic}
