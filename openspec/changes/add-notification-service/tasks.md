@@ -51,9 +51,9 @@
 
 ## 8. Integration checks
 
-- [ ] 8.1 Add end-to-end tests that post through the API, run the worker against the fake provider, and read back through `GET`. Verify they cover a confirmed send reaching `sent`, a transient rejection then success, a permanent rejection reaching `failed`, a timeout reaching `unknown`, a replay of the `unknown` key leaving the fake provider's call count at one, and a permanent rejection whose provider message echoes the recipient's phone number leaving that number out of the `GET` body, including `last_error`.
-- [ ] 8.2 Verify both the API and the worker process refuse to start against a template directory containing an invalid template, naming the template in the error.
-- [ ] 8.3 Run the full test suite against a clean database and run `openspec validate add-notification-service --strict`. Walk every scenario in the three specs and list the test that covers it. Verify the suite and validation pass and no scenario is left without a test.
+- [x] 8.1 Add end-to-end tests that post through the API, run the worker against the fake provider, and read back through `GET`. Verify they cover a confirmed send reaching `sent`, a transient rejection then success, a permanent rejection reaching `failed`, a timeout reaching `unknown`, a replay of the `unknown` key leaving the fake provider's call count at one, and a permanent rejection whose provider message echoes the recipient's phone number leaving that number out of the `GET` body, including `last_error`.
+- [x] 8.2 Verify both the API and the worker process refuse to start against a template directory containing an invalid template, naming the template in the error.
+- [x] 8.3 Run the full test suite against a clean database and run `openspec validate add-notification-service --strict`. Walk every scenario in the three specs and list the test that covers it. Verify the suite and validation pass and no scenario is left without a test.
 
 ## Workflow follow-up
 

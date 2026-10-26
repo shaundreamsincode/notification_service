@@ -48,7 +48,27 @@ def test_phone_number_on_email_channel_is_rejected(client):
 
 
 def test_sms_number_without_country_code_is_rejected(client):
-    assert post(client, sms_body("(415) 555-0100")).status_code == 422
+    response = post(client, sms_body("(415) 555-0100"))
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["field"] == "recipient"
+
+
+def test_invalid_phone_number_names_the_recipient_field(client, db):
+    response = post(client, sms_body("12345"))
+    assert response.status_code == 422
+    assert [e["field"] for e in response.json()["errors"]] == ["recipient"]
+    assert row_count(db) == 0
+
+
+def test_valid_address_on_a_domain_with_no_mail_records_is_accepted(client):
+    response = post(client, email_body("ann@no-such-domain-xyzzy-12345.example.com"))
+    assert response.status_code == 202
+
+
+def test_two_notifications_get_different_uuids(client):
+    first = post(client, sms_body(), key="one").json()["uuid"]
+    second = post(client, sms_body(), key="two").json()["uuid"]
+    assert first != second
 
 
 def test_invalid_json_body_is_a_422(client):
