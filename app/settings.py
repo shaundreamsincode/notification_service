@@ -8,7 +8,7 @@ refuses to start.
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -45,6 +45,17 @@ class Settings(BaseSettings):
         return self
 
 
+class ConfigurationError(Exception):
+    """Invalid configuration. The message never includes setting values: a
+    pydantic ValidationError would echo the inputs, including DATABASE_URL."""
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    try:
+        return Settings()
+    except ValidationError as exc:
+        problems = "; ".join(
+            f"{'.'.join(str(p) for p in e['loc']) or 'settings'}: {e['msg']}" for e in exc.errors()
+        )
+        raise ConfigurationError(problems) from None

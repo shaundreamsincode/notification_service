@@ -15,8 +15,10 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import Connection, Engine, create_engine, text
 
+from app.delivery.worker import Worker
 from app.main import create_app
 from app.settings import REPO_ROOT, Settings
+from app.templates.registry import TemplateRegistry
 
 
 @pytest.fixture(scope="session")
@@ -107,3 +109,19 @@ def make_client(db: Connection, database_url: str) -> Iterator[Callable[..., Tes
 @pytest.fixture
 def client(make_client: Callable[..., TestClient]) -> TestClient:
     return make_client()
+
+
+@pytest.fixture
+def make_worker(schema: Engine, database_url: str) -> Callable[..., "Worker"]:
+    """Build a Worker over the real sample templates and the given provider."""
+
+    def _make(provider, template_dir: Path | None = None, **settings) -> "Worker":
+        config = Settings(
+            DATABASE_URL=database_url,  # type: ignore[call-arg]
+            template_dir=template_dir or REPO_ROOT / "templates",
+            **settings,
+        )
+        registry = TemplateRegistry.load(config.template_dir)
+        return Worker(schema, registry, {"email": provider, "sms": provider}, config, "test-worker")
+
+    return _make

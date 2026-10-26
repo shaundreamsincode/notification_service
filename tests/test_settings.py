@@ -46,3 +46,21 @@ def test_environment_variables_are_read(monkeypatch):
     s = make()
     assert s.batch_size == 2
     assert s.database_url == "postgresql+psycopg://example/db"
+
+
+def test_get_settings_error_never_echoes_setting_values(monkeypatch):
+    import pytest
+
+    from app.settings import ConfigurationError, get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://user:hunter2@db/notifications")
+    monkeypatch.setenv("NOTIF_BATCH_SIZE", "10")
+    try:
+        with pytest.raises(ConfigurationError) as info:
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+    assert "lease_seconds" in str(info.value)
+    assert "hunter2" not in str(info.value) and info.value.__cause__ is None
+    assert info.value.__suppress_context__
