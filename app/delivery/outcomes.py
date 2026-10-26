@@ -4,6 +4,7 @@
 constants: no provider text, recipient, or option value can reach a client.
 """
 
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -49,3 +50,46 @@ def public_error(stored: str) -> tuple[str, str]:
     except ValueError:
         return _FALLBACK_CODE, _FALLBACK_MESSAGE
     return category.value, ERROR_MESSAGES[category]
+
+
+@dataclass(frozen=True)
+class SendResult:
+    """The provider confirmed it accepted the message."""
+
+    provider_message_id: str
+
+
+class OutcomeError(Exception):
+    """A send that did not end in confirmed acceptance.
+
+    The message is the category's fixed message. ``provider_detail`` exists so
+    an adapter can hand over whatever the provider said without deciding what
+    is safe: it is discarded here and appears in no attribute, message or repr.
+    """
+
+    allowed: tuple[ErrorCategory, ...]
+
+    def __init__(self, category: ErrorCategory | None = None, provider_detail: str | None = None):
+        category = category or self.allowed[0]
+        if category not in self.allowed:
+            raise ValueError(f"{type(self).__name__} cannot carry category {category.value!r}")
+        self.category = category
+        super().__init__(ERROR_MESSAGES[category])
+
+
+class PermanentRejection(OutcomeError):
+    """The provider definitely refused and will never accept this message."""
+
+    allowed = (ErrorCategory.PROVIDER_REJECTED,)
+
+
+class TransientRejection(OutcomeError):
+    """The provider definitely did not accept the message, and may later."""
+
+    allowed = (ErrorCategory.PROVIDER_UNAVAILABLE, ErrorCategory.PROVIDER_RATE_LIMITED)
+
+
+class OutcomeUnknown(OutcomeError):
+    """The message may or may not have been delivered. Never retried."""
+
+    allowed = (ErrorCategory.PROVIDER_UNCLASSIFIED, ErrorCategory.PROVIDER_TIMEOUT)
